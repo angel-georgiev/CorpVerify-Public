@@ -774,7 +774,7 @@ table { width:100%; border-collapse:collapse; font-size:13px; } th, td { text-al
     <p class="muted">Admin keys: ${s.admins.map((a) => esc(acct(ui, a)?.label ?? short(a))).join(", ")} \xB7 approvals needed for sensitive changes: <b>${s.threshold} of ${s.adminCount}</b></p>
   </div>
   <div class="card"><h2>Governance proposals</h2>
-    <p class="hint">Sensitive changes need approval from more than one organisation's admin. The proposer's approval counts automatically; the change executes when the threshold is reached.</p>
+    <p class="hint">Sensitive changes need approval from ${s.threshold} of the ${s.adminCount} organisations' admins. The consortium sets this number and can change it by proposal. The proposer's approval counts automatically; the change executes when the threshold is reached.</p>
     ${pending.length ? `<table><tr><th>#</th><th>Proposal</th><th>Approvals</th><th></th></tr>
       ${pending.map((p) => `<tr><td>${p.id}</td><td>${esc(proposalText(ui, p))}<br><span class="muted">proposed by ${esc(acct(ui, p.proposer)?.label ?? short(p.proposer))}</span></td>
       <td>${p.approvals} / ${s.threshold}<br><span class="muted">${p.approvedBy.map((a) => esc(acct(ui, a)?.label ?? short(a))).join(", ")}</span></td>
@@ -790,17 +790,17 @@ table { width:100%; border-collapse:collapse; font-size:13px; } th, td { text-al
       <input id="p-value" type="number" min="1" value="${esc(fv(ui, "p-value", s.threshold))}" placeholder="threshold">
       <button class="primary" data-act="propose">Propose</button>
     </div>
-    <p class="muted">Admit: uses the name \xB7 Suspend/Reinstate: uses the organisation \xB7 Add/Remove admin: uses the account \xB7 Change threshold: uses the number.</p>` : `<p class="muted">Switch to an admin key to propose or approve.</p>`}
+    <p class="muted">Admit: uses the name \xB7 Suspend/Reinstate: uses the organisation \xB7 Add/Remove admin: uses the account \xB7 Change threshold: uses the number.</p>` : `<p class="muted">Choose an admin in the <b>Acting as</b> menu to propose or approve.</p>`}
   </div>
   <div class="card"><h2>Employee roles</h2>
-    <p class="hint">One role per account keeps submitting and reviewing separate. Routine role changes need one admin.</p>
+    <p class="hint">One role per account to ensure submitting and reviewing tasks are distinct. Routine changes (giving an employee a role, removing it, or switching it) need one admin.</p>
     ${admin ? `<div class="grid3">
       <select id="r-account">${unassigned.map((a) => opt(ui, "r-account", a.address, `${a.label} \u2014 ${describeAccount(ui, a.address)}`, unassigned[0]?.address)).join("")}</select>
       <select id="r-org">${s.orgs.map((o) => opt(ui, "r-org", o.id, o.name, s.orgs[0]?.id)).join("")}</select>
       <select id="r-role">${opt(ui, "r-role", 1, "Submitter", 1)}${opt(ui, "r-role", 2, "Reviewer", 1)}</select>
       <button class="primary" data-act="assign">Assign role</button>
       <button data-act="revoke">Revoke role</button>
-    </div>` : `<p class="muted">Switch to an admin key to change roles.</p>`}
+    </div>` : `<p class="muted">Choose an admin in the <b>Acting as</b> menu to change roles. In this demo you play every participant; in practice admin keys are held by different people from employees.</p>`}
   </div>`;
   }
   function proposalText(ui, p) {
