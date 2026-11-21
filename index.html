@@ -1,0 +1,1077 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CorpVerify PoC — lite demo</title>
+<style>
+:root { --ink:#1d2433; --muted:#6b7385; --line:#e3e6ee; --bg:#f6f7fb; --card:#fff; --accent:#1f5fbf; --ok:#137a4b; --err:#b4372f; --warn:#9a6a00; }
+* { box-sizing: border-box; }
+body { margin:0; font:14px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; color:var(--ink); background:var(--bg); }
+header { display:flex; flex-wrap:wrap; gap:12px 20px; align-items:center; padding:12px 20px; background:#0f1d33; color:#fff; }
+.brand { font-weight:700; font-size:18px; } .brand small { font-weight:400; opacity:.7; font-size:12px; margin-left:4px; } .logo { color:#7fb0ff; }
+.mode { font-size:12px; padding:3px 8px; border-radius:20px; background:#2b4a7a; } .mode.lite { background:#5c4a12; }
+.actor { margin-left:auto; font-size:13px; } .actor select { margin-left:6px; padding:5px; border-radius:6px; max-width:340px; }
+.principles { background:#eaf1fd; color:#21406e; font-size:12.5px; padding:7px 20px; border-bottom:1px solid #d5e2f8; }
+nav { display:flex; gap:4px; padding:8px 20px 0; border-bottom:1px solid var(--line); background:#fff; align-items:flex-end; flex-wrap:wrap; }
+.tab { border:0; background:none; padding:8px 12px; cursor:pointer; border-bottom:2px solid transparent; font:inherit; color:var(--muted); }
+.tab.on { color:var(--ink); border-color:var(--accent); font-weight:600; }
+.block { margin-left:auto; font-size:12px; color:var(--muted); padding-bottom:8px; }
+main { max-width:1060px; margin:0 auto; padding:16px 20px 60px; }
+.who { color:var(--muted); margin-bottom:10px; } .who b { color:var(--ink); } .addr { font-family:ui-monospace,monospace; font-size:11.5px; }
+.card { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:16px 18px; margin-bottom:14px; }
+h2 { font-size:16px; margin:0 0 8px; } h3 { font-size:14px; margin:14px 0 6px; }
+.hint { color:var(--muted); margin:0 0 10px; font-size:13px; } .muted { color:var(--muted); font-size:12px; }
+.info { background:#fff8e1; border:1px solid #f0dca0; padding:8px 10px; border-radius:6px; }
+.grid2 { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:10px; }
+.grid3 { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; align-items:center; }
+label { display:flex; flex-direction:column; gap:3px; font-size:12.5px; color:var(--muted); }
+input, select, textarea { font:inherit; padding:6px 8px; border:1px solid #cfd5e2; border-radius:6px; color:var(--ink); background:#fff; }
+textarea { width:100%; font-family:ui-monospace,monospace; font-size:12.5px; resize:vertical; }
+button { font:inherit; padding:6px 12px; border-radius:6px; border:1px solid #c9d0de; background:#fff; cursor:pointer; }
+button:hover:not(:disabled) { border-color:var(--accent); } button:disabled { opacity:.45; cursor:not-allowed; }
+button.primary { background:var(--accent); color:#fff; border-color:var(--accent); } button.danger { color:var(--err); border-color:#e3b4b0; }
+button.link { border:0; background:none; color:var(--muted); padding:0 4px; text-decoration:underline; }
+.row { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin:8px 0; }
+.check { flex-direction:row; align-items:center; gap:6px; color:var(--ink); }
+.filebtn { flex-direction:row; display:inline-flex; padding:6px 12px; border:1px dashed #9fb0cf; border-radius:6px; cursor:pointer; color:var(--accent); }
+.filebtn input { display:none; }
+.files { border:1px dashed #c4cfe3; border-radius:8px; padding:10px; margin:10px 0; background:#fbfcfe; }
+.file { margin-bottom:8px; } .fhead { display:flex; gap:8px; align-items:center; } .fname { flex:1; } .fhash { font-family:ui-monospace,monospace; font-size:11.5px; color:var(--muted); }
+.hashline { font-size:12.5px; margin-top:6px; word-break:break-all; } code { font-family:ui-monospace,monospace; font-size:12px; background:#f1f3f8; padding:1px 4px; border-radius:4px; }
+.okline { color:var(--ok); font-weight:600; } .errline { color:var(--err); font-weight:600; } .err { color:var(--err); }
+table { width:100%; border-collapse:collapse; font-size:13px; } th, td { text-align:left; padding:6px 8px; border-bottom:1px solid var(--line); vertical-align:top; } th { color:var(--muted); font-weight:500; font-size:12px; }
+.badge { display:inline-block; padding:1px 8px; border-radius:20px; font-size:11.5px; font-weight:600; white-space:nowrap; }
+.s-submitted { background:#e6eefc; color:#1f4f9a; } .s-ack { background:#fdf1d7; color:#8a5a00; } .s-done { background:#dff3e8; color:#11663f; } .s-corr { background:#fbe3e1; color:#9b2f28; } .s-super { background:#eceef2; color:#5a6170; }
+.item { border:1px solid var(--line); border-radius:8px; padding:10px 12px; margin-bottom:10px; } .ihead { margin-bottom:6px; }
+.log { margin-bottom:12px; } .log div { padding:6px 10px; border-radius:6px; margin-bottom:4px; font-size:13px; } .log span { color:var(--muted); font-size:11.5px; margin-right:6px; }
+.log .ok { background:#e5f5ec; } .log .err { background:#fbe7e5; color:var(--err); } .log .info { background:#eef3fb; }
+.history { padding-left:18px; } .history > li { margin-bottom:8px; } .history li.hl > b { color:var(--accent); } .history ul { margin:4px 0; padding-left:16px; font-size:12.5px; }
+.blocks { display:flex; gap:8px; overflow-x:auto; padding:4px 0; } .blk { min-width:150px; border:1px solid var(--line); border-radius:8px; padding:8px; font-size:12px; background:#fbfcfe; }
+.busy { position:fixed; bottom:16px; right:16px; background:#0f1d33; color:#fff; padding:8px 14px; border-radius:8px; }
+.prose li { margin-bottom:4px; } .fatal { max-width:640px; margin:60px auto; background:#fff; border:1px solid var(--line); border-radius:10px; padding:20px; }
+@media (max-width: 720px) { .grid2, .grid3 { grid-template-columns:1fr; } .actor { margin-left:0; } }
+
+</style>
+</head>
+<body>
+<div id="app"><p style="padding:20px">Loading…</p></div>
+<script>
+(() => {
+  // ui/hashing.js
+  var enc = new TextEncoder();
+  function toHex(buf) {
+    return "0x" + [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
+  }
+  async function sha256Hex(bytes) {
+    return toHex(await globalThis.crypto.subtle.digest("SHA-256", bytes));
+  }
+  async function buildManifest(files) {
+    if (!files.length) throw new Error("An evidence package needs at least one file");
+    const names = /* @__PURE__ */ new Set();
+    const lines = [];
+    for (const f of files) {
+      if (names.has(f.name)) throw new Error(`Duplicate file name: ${f.name}`);
+      names.add(f.name);
+      lines.push({ name: f.name, hash: await sha256Hex(f.bytes) });
+    }
+    lines.sort((a, b) => a.name < b.name ? -1 : a.name > b.name ? 1 : 0);
+    return lines;
+  }
+  async function hashPackage(files) {
+    const manifest = await buildManifest(files);
+    const text = manifest.map((l) => `${l.name}	${l.hash}`).join("\n");
+    return { packageHash: await sha256Hex(enc.encode(text)), manifest };
+  }
+
+  // ui/scenario.js
+  var ORGS = ["Atlas Corporate Services", "Northbridge Bank", "Meridian Legal"];
+  var THRESHOLD = 2;
+  var ACCOUNTS = [
+    { index: 0, label: "Admin \u2014 Atlas", kind: "admin" },
+    { index: 1, label: "Admin \u2014 Northbridge", kind: "admin" },
+    { index: 2, label: "Admin \u2014 Meridian", kind: "admin" },
+    { index: 3, label: "Alice", kind: "employee", org: 1, role: 1 },
+    // Atlas submitter
+    { index: 4, label: "Bob", kind: "employee", org: 2, role: 2 },
+    // Northbridge reviewer
+    { index: 5, label: "Carol", kind: "employee", org: 2, role: 1 },
+    // Northbridge submitter
+    { index: 6, label: "Dan", kind: "employee", org: 3, role: 2 },
+    // Meridian reviewer
+    { index: 7, label: "Erin", kind: "unassigned" }
+    // no role yet (use for onboarding demo)
+  ];
+  var STATUS = ["Submitted", "Receipt acknowledged", "Review completed", "Correction requested", "Superseded"];
+  var ROLE = ["None", "Submitter", "Reviewer"];
+  var ACTION = ["Admit organisation", "Suspend organisation", "Reinstate organisation", "Add admin", "Remove admin", "Change threshold"];
+
+  // ui/backend-sim.js
+  var ADDRESSES = [
+    "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+    "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+    "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC",
+    "0x90F79bf6EB2c4f870365E785982E1f101E93b906",
+    "0x15d34AAf54267DB7D7c367839AAf71A00a2C6A65",
+    "0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc",
+    "0x976EA74026E726554dB657fA54763abd0C3a0aa9",
+    "0x14dC79964da2C08b23698B3D3cc7Ca32193d9955"
+  ];
+  var ZERO = "0x0000000000000000000000000000000000000000";
+  var ZERO32 = "0x" + "0".repeat(64);
+  var S = { Submitted: 0, ReceiptAcknowledged: 1, ReviewCompleted: 2, CorrectionRequested: 3, Superseded: 4 };
+  var R = { None: 0, Submitter: 1, Reviewer: 2 };
+  var A = { AdmitOrganisation: 0, SuspendOrganisation: 1, ReinstateOrganisation: 2, AddAdmin: 3, RemoveAdmin: 4, SetThreshold: 5 };
+  var enc2 = new TextEncoder();
+  var norm = (a) => a.toLowerCase();
+  var ContractError = class extends Error {
+    constructor(reason, args = []) {
+      super(`${reason}(${args.join(", ")})`);
+      this.reason = reason;
+      this.args = args;
+    }
+  };
+  var revert = (reason, ...args) => {
+    throw new ContractError(reason, args);
+  };
+  var CorpVerifySim = class {
+    constructor(admins, threshold, orgNames) {
+      this.isAdmin = /* @__PURE__ */ new Map();
+      this.orgs = /* @__PURE__ */ new Map();
+      this.members = /* @__PURE__ */ new Map();
+      this.records = /* @__PURE__ */ new Map();
+      this.recordByHash = /* @__PURE__ */ new Map();
+      this.latestByPackage = /* @__PURE__ */ new Map();
+      this.proposals = /* @__PURE__ */ new Map();
+      this.organisationCount = 0;
+      this.recordCount = 0;
+      this.proposalCount = 0;
+      this.pendingEvents = [];
+      if (!admins.length || threshold === 0 || threshold > admins.length) revert("InvalidInput");
+      for (const a of admins) {
+        if (a === ZERO || this.isAdmin.get(norm(a))) revert("InvalidInput");
+        this.isAdmin.set(norm(a), true);
+        this.emit("AdminChanged", { account: a, added: true });
+      }
+      this.adminCount = admins.length;
+      this.threshold = threshold;
+      this.emit("ThresholdChanged", { threshold });
+      for (const n of orgNames) this._admit(n);
+    }
+    emit(name, args) {
+      this.pendingEvents.push({ name, args });
+    }
+    member(a) {
+      return this.members.get(norm(a)) ?? { orgId: 0, role: R.None };
+    }
+    onlyAdmin(from) {
+      if (!this.isAdmin.get(norm(from))) revert("NotAdmin");
+    }
+    requireActive(orgId) {
+      const o = this.orgs.get(orgId);
+      if (!o) revert("UnknownOrganisation", orgId);
+      if (!o.active) revert("OrganisationInactive", orgId);
+    }
+    key(orgId, packageId) {
+      return `${orgId}\0${packageId}`;
+    }
+    now() {
+      return this.blockTime ?? Math.floor(Date.now() / 1e3);
+    }
+    // set to the pending block's timestamp
+    // ---- evidence workflow
+    submit(from, packageId, evidenceHash, recipientOrg) {
+      const m = this.member(from);
+      if (m.role !== R.Submitter) revert("NotAuthorised");
+      this.requireActive(m.orgId);
+      this.requireActive(recipientOrg);
+      const len = enc2.encode(packageId).length;
+      if (len === 0 || len > 64) revert("InvalidInput");
+      evidenceHash = evidenceHash.toLowerCase();
+      if (evidenceHash === ZERO32 || recipientOrg === m.orgId) revert("InvalidInput");
+      if (this.recordByHash.get(evidenceHash)) revert("HashAlreadyRecorded", this.recordByHash.get(evidenceHash));
+      const k = this.key(m.orgId, packageId);
+      const prevId = this.latestByPackage.get(k) ?? 0;
+      let version = 1;
+      if (prevId) {
+        const prev = this.records.get(prevId);
+        if (prev.recipientOrg !== recipientOrg) revert("RecipientMismatch");
+      }
+      const id = ++this.recordCount;
+      if (prevId) {
+        const prev = this.records.get(prevId);
+        version = prev.version + 1;
+        prev.status = S.Superseded;
+        prev.supersededBy = id;
+        prev.updatedAt = this.now();
+        this.emit("PackageSuperseded", { recordId: prevId, newRecordId: id });
+      }
+      this.records.set(id, {
+        id,
+        packageId,
+        version,
+        evidenceHash,
+        submitterOrg: m.orgId,
+        recipientOrg,
+        submittedBy: from,
+        submittedAt: this.now(),
+        updatedAt: this.now(),
+        status: S.Submitted,
+        previousRecord: prevId,
+        supersededBy: 0
+      });
+      this.latestByPackage.set(k, id);
+      this.recordByHash.set(evidenceHash, id);
+      this.emit("PackageSubmitted", { recordId: id, packageId, version, evidenceHash, submitterOrg: m.orgId, recipientOrg, submittedBy: from, previousRecord: prevId });
+      return id;
+    }
+    _reviewable(from, id, required) {
+      if (!this.records.has(id)) revert("UnknownRecord", id);
+      const r = this.records.get(id);
+      const m = this.member(from);
+      if (m.role !== R.Reviewer || m.orgId !== r.recipientOrg) revert("NotAuthorised");
+      this.requireActive(m.orgId);
+      if (r.status !== required) revert("InvalidStatus", r.status);
+      return r;
+    }
+    acknowledgeReceipt(from, id, calculatedHash) {
+      const r = this._reviewable(from, id, S.Submitted);
+      if (calculatedHash.toLowerCase() !== r.evidenceHash) revert("HashMismatch", r.evidenceHash, calculatedHash);
+      r.status = S.ReceiptAcknowledged;
+      r.updatedAt = this.now();
+      this.emit("ReceiptAcknowledged", { recordId: id, by: from });
+    }
+    completeReview(from, id) {
+      const r = this._reviewable(from, id, S.ReceiptAcknowledged);
+      r.status = S.ReviewCompleted;
+      r.updatedAt = this.now();
+      this.emit("ReviewCompleted", { recordId: id, by: from });
+    }
+    requestCorrection(from, id) {
+      const r = this._reviewable(from, id, S.ReceiptAcknowledged);
+      r.status = S.CorrectionRequested;
+      r.updatedAt = this.now();
+      this.emit("CorrectionRequested", { recordId: id, by: from });
+    }
+    // ---- roles
+    assignRole(from, account, orgId, role) {
+      this.onlyAdmin(from);
+      if (account === ZERO || role === R.None) revert("InvalidInput");
+      if (this.isAdmin.get(norm(account))) revert("AdminCannotHoldEmployeeRole");
+      this.requireActive(orgId);
+      this.members.set(norm(account), { orgId, role });
+      this.emit("RoleAssigned", { account, orgId, role, by: from });
+    }
+    revokeRole(from, account) {
+      this.onlyAdmin(from);
+      if (this.member(account).role === R.None) revert("InvalidInput");
+      this.members.delete(norm(account));
+      this.emit("RoleRevoked", { account, by: from });
+    }
+    // ---- governance
+    propose(from, action, target, orgId, value, name) {
+      this.onlyAdmin(from);
+      this._validate(action, target, orgId, value, name);
+      const id = ++this.proposalCount;
+      this.proposals.set(id, { id, action, target, orgId, value, name, proposer: from, approvals: 0, executed: false, approvedBy: /* @__PURE__ */ new Set() });
+      this.emit("ProposalCreated", { proposalId: id, action, proposer: from });
+      this._approve(from, id);
+      return id;
+    }
+    approve(from, id) {
+      this.onlyAdmin(from);
+      this._approve(from, id);
+    }
+    _validate(action, target, orgId, value, name) {
+      if (action === A.AdmitOrganisation) {
+        if (!name) revert("InvalidInput");
+      } else if (action === A.SuspendOrganisation || action === A.ReinstateOrganisation) {
+        if (!this.orgs.has(orgId)) revert("UnknownOrganisation", orgId);
+      } else if (action === A.AddAdmin) {
+        if (target === ZERO || this.isAdmin.get(norm(target))) revert("InvalidInput");
+        if (this.member(target).role !== R.None) revert("EmployeeCannotBeAdmin");
+      } else if (action === A.RemoveAdmin) {
+        if (!this.isAdmin.get(norm(target)) || this.adminCount - 1 < this.threshold) revert("InvalidInput");
+      } else if (action === A.SetThreshold) {
+        if (value === 0 || value > this.adminCount) revert("InvalidInput");
+      }
+    }
+    _approve(from, id) {
+      const p = this.proposals.get(id);
+      if (!p) revert("UnknownProposal");
+      if (p.executed) revert("AlreadyExecuted");
+      if (p.approvedBy.has(norm(from))) revert("AlreadyApproved");
+      p.approvedBy.add(norm(from));
+      p.approvals += 1;
+      this.emit("ProposalApproved", { proposalId: id, admin: from, approvals: p.approvals });
+      if (p.approvals >= this.threshold) this._execute(p);
+    }
+    _execute(p) {
+      p.executed = true;
+      const a = p.action;
+      if (a === A.AdmitOrganisation) this._admit(p.name);
+      else if (a === A.SuspendOrganisation || a === A.ReinstateOrganisation) {
+        const active = a === A.ReinstateOrganisation;
+        this.orgs.get(p.orgId).active = active;
+        this.emit("OrganisationStatusChanged", { orgId: p.orgId, active });
+      } else if (a === A.AddAdmin) {
+        if (this.isAdmin.get(norm(p.target))) revert("InvalidInput");
+        if (this.member(p.target).role !== R.None) revert("EmployeeCannotBeAdmin");
+        this.isAdmin.set(norm(p.target), true);
+        this.adminCount++;
+        this.emit("AdminChanged", { account: p.target, added: true });
+      } else if (a === A.RemoveAdmin) {
+        if (!this.isAdmin.get(norm(p.target)) || this.adminCount - 1 < this.threshold) revert("InvalidInput");
+        this.isAdmin.delete(norm(p.target));
+        this.adminCount--;
+        this.emit("AdminChanged", { account: p.target, added: false });
+      } else if (a === A.SetThreshold) {
+        if (p.value === 0 || p.value > this.adminCount) revert("InvalidInput");
+        this.threshold = p.value;
+        this.emit("ThresholdChanged", { threshold: p.value });
+      }
+      this.emit("ProposalExecuted", { proposalId: p.id });
+    }
+    _admit(name) {
+      if (!name) revert("InvalidInput");
+      const id = ++this.organisationCount;
+      this.orgs.set(id, { id, name, active: true });
+      this.emit("OrganisationAdmitted", { orgId: id, name });
+      return id;
+    }
+    // ---- views
+    getHistory(id) {
+      if (!this.records.has(id)) revert("UnknownRecord", id);
+      let latest = id;
+      while (this.records.get(latest).supersededBy) latest = this.records.get(latest).supersededBy;
+      const out = [];
+      for (let cur = latest; cur; cur = this.records.get(cur).previousRecord) out.push(cur);
+      return out;
+    }
+  };
+  var SimBackend = class {
+    constructor() {
+      this.mode = "lite";
+      this.blocks = [];
+      this.events = [];
+    }
+    async init() {
+      this.accounts = ACCOUNTS.map((a) => ({ ...a, address: ADDRESSES[a.index] }));
+      const admins = this.accounts.filter((a) => a.kind === "admin").map((a) => a.address);
+      this.contractAddress = "0x5FbDB2315678afecb367f032d93F642f64180aa3";
+      const genesisHash = await sha256Hex(enc2.encode("CorpVerify lite genesis"));
+      this.blocks.push({ number: 0, timestamp: Math.floor(Date.now() / 1e3), parentHash: ZERO32, hash: genesisHash, txs: [] });
+      await this._tx(admins[0], "deploy", [admins, THRESHOLD, ORGS], () => {
+        this.c = new CorpVerifySim(admins, THRESHOLD, ORGS);
+      });
+      for (const a of this.accounts.filter((x) => x.kind === "employee")) {
+        await this._tx(admins[0], "assignRole", [a.address, a.org, a.role], (c) => c.assignRole(admins[0], a.address, a.org, a.role));
+      }
+      return { mode: this.mode, accounts: this.accounts, contractAddress: this.contractAddress };
+    }
+    // One successful call = one transaction = one block (like Hardhat's automine). Reverts are not mined.
+    async _tx(from, method, args, fn) {
+      const parent = this.blocks[this.blocks.length - 1];
+      const timestamp = Math.max(Math.floor(Date.now() / 1e3), parent.timestamp + 1);
+      if (this.c) {
+        this.c.pendingEvents = [];
+        this.c.blockTime = timestamp;
+      }
+      let result;
+      try {
+        result = fn(this.c);
+      } catch (e) {
+        if (this.c) this.c.pendingEvents = [];
+        throw e;
+      }
+      const txBody = JSON.stringify({ from, method, args, nonce: this.blocks.length }, (_, v) => typeof v === "bigint" ? v.toString() : v);
+      const txHash = await sha256Hex(enc2.encode(txBody));
+      const number = parent.number + 1;
+      const evs = this.c.pendingEvents.map((e) => ({ ...e, block: number, tx: txHash, time: timestamp }));
+      const blockBody = JSON.stringify({ number, timestamp, parentHash: parent.hash, txs: [txBody], events: evs.map((e) => [e.name, e.args]) });
+      const hash = await sha256Hex(enc2.encode(blockBody));
+      this.blocks.push({ number, timestamp, parentHash: parent.hash, hash, txs: [{ hash: txHash, from, method, args, body: txBody }], events: evs, body: blockBody });
+      this.events.push(...evs);
+      this.c.pendingEvents = [];
+      return { result, block: number, tx: txHash };
+    }
+    /** Recomputes every block hash and parent link — shows that editing history is detectable. */
+    async verifyChain() {
+      for (let i = 1; i < this.blocks.length; i++) {
+        const b = this.blocks[i];
+        if (b.parentHash !== this.blocks[i - 1].hash) return { ok: false, block: b.number, problem: "parent hash link broken" };
+        if (await sha256Hex(enc2.encode(b.body)) !== b.hash) return { ok: false, block: b.number, problem: "block content changed after it was sealed" };
+      }
+      return { ok: true, blocks: this.blocks.length };
+    }
+    /** Demo only: silently edits a sealed block, as an attacker with database access might. */
+    tamperWithBlock(number) {
+      const b = this.blocks[number];
+      if (!b || !b.body) return false;
+      b.body = b.body.replace(/0x[0-9a-f]{64}/, "0x" + "f".repeat(64));
+      return true;
+    }
+    // ---- write API (same signatures as ChainBackend)
+    submit(from, packageId, hash, recipientOrg) {
+      return this._tx(from, "submit", [packageId, hash, recipientOrg], (c) => c.submit(from, packageId, hash, recipientOrg));
+    }
+    acknowledgeReceipt(from, id, hash) {
+      return this._tx(from, "acknowledgeReceipt", [id, hash], (c) => c.acknowledgeReceipt(from, id, hash));
+    }
+    completeReview(from, id) {
+      return this._tx(from, "completeReview", [id], (c) => c.completeReview(from, id));
+    }
+    requestCorrection(from, id) {
+      return this._tx(from, "requestCorrection", [id], (c) => c.requestCorrection(from, id));
+    }
+    assignRole(from, account, orgId, role) {
+      return this._tx(from, "assignRole", [account, orgId, role], (c) => c.assignRole(from, account, orgId, role));
+    }
+    revokeRole(from, account) {
+      return this._tx(from, "revokeRole", [account], (c) => c.revokeRole(from, account));
+    }
+    propose(from, action, target, orgId, value, name) {
+      return this._tx(from, "propose", [action, target || ZERO, orgId, value, name], (c) => c.propose(from, action, target || ZERO, orgId, value, name));
+    }
+    approve(from, id) {
+      return this._tx(from, "approve", [id], (c) => c.approve(from, id));
+    }
+    // ---- read API
+    async getState() {
+      const c = this.c;
+      const memberAddrs = new Set(this.accounts.map((a) => a.address));
+      for (const e of this.events) if (e.name === "RoleAssigned") memberAddrs.add(e.args.account);
+      return {
+        orgs: [...c.orgs.values()].map((o) => ({ ...o })),
+        admins: this.accounts.map((a) => a.address).filter((a) => c.isAdmin.get(norm(a))),
+        threshold: c.threshold,
+        adminCount: c.adminCount,
+        members: [...memberAddrs].map((address) => ({ address, ...c.member(address) })).filter((m) => m.role !== R.None),
+        records: [...c.records.values()].map((r) => ({ ...r })),
+        proposals: [...c.proposals.values()].map((p) => ({ ...p, approvedBy: [...p.approvedBy] })),
+        blockNumber: this.blocks.length - 1
+      };
+    }
+    async recordByHash(hash) {
+      return this.c.recordByHash.get(hash.toLowerCase()) ?? 0;
+    }
+    async getHistory(id) {
+      return this.c.getHistory(id);
+    }
+    async getEvents() {
+      return this.events.slice();
+    }
+  };
+
+  // ui/app.js
+  var enc3 = new TextEncoder();
+  var $ = (sel, root = document) => root.querySelector(sel);
+  var esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+  var short = (h, n = 10) => h ? `${h.slice(0, n)}\u2026${h.slice(-4)}` : "";
+  var fmtTime = (t) => t ? new Date(t * 1e3).toLocaleString() : "";
+  var STATUS_CLASS = ["s-submitted", "s-ack", "s-done", "s-corr", "s-super"];
+  var ERRORS = {
+    NotAuthorised: "This account does not have the role needed for this action.",
+    NotAdmin: "Only consortium admin keys can do this.",
+    HashMismatch: "The hash you calculated does not match the hash on record. Do not rely on this package.",
+    HashAlreadyRecorded: "This exact package (same hash) is already on record. A new version needs a new hash.",
+    InvalidStatus: "This action is not allowed in the package's current status.",
+    OrganisationInactive: "The organisation is suspended.",
+    UnknownOrganisation: "Unknown organisation.",
+    UnknownRecord: "Unknown record.",
+    InvalidInput: "Invalid input (check the package ID, recipient, or the governance limits).",
+    AlreadyApproved: "This admin has already approved the proposal.",
+    AlreadyExecuted: "This proposal has already been executed.",
+    UnknownProposal: "Unknown proposal.",
+    AdminCannotHoldEmployeeRole: "Admin keys cannot hold employee roles (separation of keys).",
+    EmployeeCannotBeAdmin: "An employee signing key cannot become an admin key.",
+    RecipientMismatch: "A new version must go to the same recipient as the earlier version."
+  };
+  var SAMPLES = [
+    { name: "certificate_of_incorporation.txt", text: "ACME Holdings Ltd\nCompany number 0912345\nIncorporated 2 March 2014\nRegistered office: 1 Harbour Street" },
+    { name: "register_of_beneficial_owners.txt", text: "J. Smith \u2014 60%\nK. Brown \u2014 40%" },
+    { name: "proof_of_address.txt", text: "Utility bill, ACME Holdings Ltd, 1 Harbour Street, dated 1 October 2026" }
+  ];
+  async function start(backend, root) {
+    const ui = {
+      backend,
+      root,
+      info: null,
+      state: null,
+      events: [],
+      actor: null,
+      tab: "work",
+      busy: false,
+      log: [],
+      offchain: /* @__PURE__ */ new Map(),
+      // hash → { packageId, files } : the simulated secure off-chain share
+      draft: { packageId: "ACME-KYC-2026-001", recipient: 2, files: [], hash: null, manifest: [] },
+      receive: /* @__PURE__ */ new Map(),
+      // recordId → { files, hash, tamper }
+      verify: { files: [], hash: null, result: null },
+      chainCheck: null,
+      forms: {}
+      // admin form values, kept across re-renders
+    };
+    ui.info = await backend.init();
+    ui.actor = ui.info.accounts.find((a) => a.label === "Alice")?.address ?? ui.info.accounts[0].address;
+    await refresh(ui);
+    root.addEventListener("click", (e) => onClick(ui, e));
+    root.addEventListener("change", (e) => onChange(ui, e));
+    root.addEventListener("input", (e) => onInput(ui, e));
+    return ui;
+  }
+  async function refresh(ui) {
+    ui.state = await ui.backend.getState();
+    ui.events = await ui.backend.getEvents();
+    render(ui);
+  }
+  var acct = (ui, addr) => ui.info.accounts.find((a) => a.address.toLowerCase() === addr?.toLowerCase());
+  var orgName = (ui, id) => ui.state.orgs.find((o) => o.id === id)?.name ?? `Org #${id}`;
+  var isAdmin = (ui, addr) => ui.state.admins.some((a) => a.toLowerCase() === addr.toLowerCase());
+  var memberOf = (ui, addr) => ui.state.members.find((m) => m.address.toLowerCase() === addr.toLowerCase());
+  function who(ui, addr) {
+    const a = acct(ui, addr);
+    const m = memberOf(ui, addr);
+    const label = a?.label ?? short(addr, 8);
+    if (m) return `${label} (${orgName(ui, m.orgId)}, ${ROLE[m.role]})`;
+    if (isAdmin(ui, addr)) return `${label}`;
+    return label;
+  }
+  var fv = (ui, id, dflt) => ui.forms[id] ?? String(dflt ?? "");
+  var opt = (ui, id, value, label, dflt) => `<option value="${esc(value)}" ${fv(ui, id, dflt) === String(value) ? "selected" : ""}>${esc(label)}</option>`;
+  var statusBadge = (s) => `<span class="badge ${STATUS_CLASS[s]}">${STATUS[s]}</span>`;
+  function note(ui, kind, text) {
+    ui.log.unshift({ kind, text, t: (/* @__PURE__ */ new Date()).toLocaleTimeString() });
+    ui.log = ui.log.slice(0, 6);
+  }
+  async function run(ui, label, fn) {
+    if (ui.busy) return;
+    ui.busy = true;
+    render(ui);
+    try {
+      const r = await fn();
+      note(ui, "ok", `${label} \u2014 recorded in block #${r.block} (tx ${short(r.tx, 10)})`);
+    } catch (e) {
+      const reason = e.reason ? `${e.reason}: ${ERRORS[e.reason] ?? ""}` : e.message;
+      note(ui, "err", `${label} \u2014 rejected. ${reason}`);
+    } finally {
+      ui.busy = false;
+      await refresh(ui);
+    }
+  }
+  async function readFiles(fileList) {
+    const out = [];
+    for (const f of fileList) out.push({ name: f.name, bytes: new Uint8Array(await f.arrayBuffer()), size: f.size, editable: false });
+    return out;
+  }
+  var textEntry = (name, text) => ({ name, text, bytes: enc3.encode(text), editable: true });
+  async function rehash(target) {
+    if (!target.files.length) {
+      target.hash = null;
+      target.manifest = [];
+      return;
+    }
+    try {
+      const { packageHash, manifest } = await hashPackage(target.files);
+      target.hash = packageHash;
+      target.manifest = manifest;
+      target.error = null;
+    } catch (e) {
+      target.hash = null;
+      target.error = e.message;
+    }
+  }
+  function render(ui) {
+    const me = acct(ui, ui.actor);
+    const m = memberOf(ui, ui.actor);
+    const roleText = isAdmin(ui, ui.actor) ? "Consortium admin key" : m ? `${ROLE[m.role]} \xB7 ${orgName(ui, m.orgId)}` : "No role assigned";
+    const focus = document.activeElement?.dataset?.focusKey;
+    const caret = document.activeElement?.selectionStart;
+    ui.root.innerHTML = `
+  <header>
+    <div class="brand"><span class="logo">\u25C6</span> CorpVerify <small>proof of concept</small></div>
+    <div class="mode ${ui.info.mode}">${ui.info.mode === "chain" ? "Local Hardhat chain \xB7 real smart contract" : "Lite demo \xB7 simulated ledger in this page"}</div>
+    <label class="actor">Acting as
+      <select data-act="actor">
+        ${ui.info.accounts.map((a) => `<option value="${a.address}" ${a.address === ui.actor ? "selected" : ""}>${esc(a.label)} \u2014 ${esc(describeAccount(ui, a.address))}</option>`).join("")}
+      </select>
+    </label>
+  </header>
+  <div class="principles">Original documents stay off-chain \xB7 Only hashes and workflow events are recorded \xB7 CorpVerify does not approve evidence or make compliance decisions \xB7 Human review remains necessary</div>
+  <nav>
+    ${[["work", "My work"], ["verify", "Verify a package"], ["network", "Network & governance"], ["ledger", "Ledger"], ["about", "How it works"]].map(([k, l]) => `<button class="tab ${ui.tab === k ? "on" : ""}" data-act="tab" data-tab="${k}">${l}</button>`).join("")}
+    <span class="block">Block #${ui.state.blockNumber}</span>
+  </nav>
+  <main>
+    <section class="who"><b>${esc(me?.label)}</b> <span class="addr">${esc(ui.actor)}</span> \xB7 ${esc(roleText)}</section>
+    ${ui.log.length ? `<section class="log">${ui.log.map((l) => `<div class="${l.kind}"><span>${l.t}</span> ${esc(l.text)}</div>`).join("")}</section>` : ""}
+    ${ui.tab === "work" ? renderWork(ui) : ""}
+    ${ui.tab === "verify" ? renderVerify(ui) : ""}
+    ${ui.tab === "network" ? renderNetwork(ui) : ""}
+    ${ui.tab === "ledger" ? renderLedger(ui) : ""}
+    ${ui.tab === "about" ? renderAbout(ui) : ""}
+  </main>
+  ${ui.busy ? `<div class="busy">Sending transaction\u2026</div>` : ""}`;
+    if (focus) {
+      const el = ui.root.querySelector(`[data-focus-key="${focus}"]`);
+      if (el) {
+        el.focus();
+        try {
+          el.setSelectionRange(caret, caret);
+        } catch {
+        }
+      }
+    }
+  }
+  function describeAccount(ui, addr) {
+    if (isAdmin(ui, addr)) return "admin";
+    const m = memberOf(ui, addr);
+    return m ? `${ROLE[m.role]}, ${orgName(ui, m.orgId)}` : "no role";
+  }
+  function renderWork(ui) {
+    if (isAdmin(ui, ui.actor)) return `<div class="card"><h2>Admin key</h2><p>Admin keys manage participation and permissions. They cannot submit or review evidence. Go to <a href="#" data-act="tab" data-tab="network">Network &amp; governance</a>.</p></div>${renderNetwork(ui)}`;
+    const m = memberOf(ui, ui.actor);
+    if (!m) return `<div class="card"><h2>No role yet</h2><p>This account has not been assigned to an organisation. An admin can assign it a role under <a href="#" data-act="tab" data-tab="network">Network &amp; governance</a>.</p></div>`;
+    return m.role === 1 ? renderSubmitter(ui, m) : renderReviewer(ui, m);
+  }
+  function filesEditor(ui, target, scope) {
+    return `
+  <div class="files">
+    ${target.files.map((f, i) => `
+      <div class="file">
+        <div class="fhead">
+          ${f.editable ? `<input class="fname" data-act="fname" data-scope="${scope}" data-i="${i}" data-focus-key="${scope}-n-${i}" value="${esc(f.name)}">` : `<b>${esc(f.name)}</b> <small>${f.bytes.length} bytes (uploaded)</small>`}
+          <span class="fhash">${esc(short(target.manifest.find((l) => l.name === f.name)?.hash ?? "", 12))}</span>
+          <button class="link" data-act="rmfile" data-scope="${scope}" data-i="${i}">remove</button>
+        </div>
+        ${f.editable ? `<textarea data-act="ftext" data-scope="${scope}" data-i="${i}" data-focus-key="${scope}-t-${i}" rows="2">${esc(f.text)}</textarea>` : ""}
+      </div>`).join("")}
+    <div class="row">
+      <label class="filebtn">Add files\u2026 <input type="file" multiple data-act="upload" data-scope="${scope}"></label>
+      <button data-act="addtext" data-scope="${scope}">Add text document</button>
+      ${scope === "draft" ? `<button data-act="samples">Use sample documents</button>` : ""}
+    </div>
+    ${target.error ? `<p class="err">${esc(target.error)}</p>` : ""}
+    <div class="hashline">Package hash: ${target.hash ? `<code>${target.hash}</code>` : "<i>add at least one file</i>"}</div>
+  </div>`;
+  }
+  function renderSubmitter(ui, m) {
+    const d = ui.draft;
+    const recipients = ui.state.orgs.filter((o) => o.id !== m.orgId);
+    const mine = ui.state.records.filter((r) => r.submitterOrg === m.orgId);
+    const latest = mine.filter((r) => !r.supersededBy).sort((a, b) => b.id - a.id);
+    const existing = latest.find((r) => r.packageId === d.packageId);
+    return `
+  <div class="card">
+    <h2>Submit an evidence package</h2>
+    <p class="hint">1) Store originals in your own repository \xB7 2) build the package and hash it here (in your browser) \xB7 3) submit only the hash. The files are then shared with the recipient off-chain.</p>
+    <div class="grid2">
+      <label>Package ID <input data-act="pkgid" data-focus-key="pkgid" value="${esc(d.packageId)}"></label>
+      <label>Recipient organisation
+        <select data-act="recipient">${recipients.map((o) => `<option value="${o.id}" ${o.id === d.recipient ? "selected" : ""} ${o.active ? "" : "disabled"}>${esc(o.name)}${o.active ? "" : " (suspended)"}</option>`).join("")}</select>
+      </label>
+    </div>
+    ${existing ? `<p class="info">Package <b>${esc(d.packageId)}</b> already exists (v${existing.version}, ${STATUS[existing.status]}). Submitting will record <b>v${existing.version + 1}</b> and mark v${existing.version} as <b>Superseded</b>.</p>` : ""}
+    ${filesEditor(ui, d, "draft")}
+    <button class="primary" data-act="submit" ${d.hash && !ui.busy ? "" : "disabled"}>${existing ? `Submit v${existing.version + 1}` : "Submit to CorpVerify"}</button>
+  </div>
+  <div class="card">
+    <h2>Packages sent by ${esc(orgName(ui, m.orgId))}</h2>
+    ${latest.length ? `<table><tr><th>Package</th><th>Version</th><th>Recipient</th><th>Status</th><th>Hash</th><th></th></tr>
+      ${latest.map((r) => `<tr>
+        <td>${esc(r.packageId)}</td><td>v${r.version}</td><td>${esc(orgName(ui, r.recipientOrg))}</td><td>${statusBadge(r.status)}</td>
+        <td><code>${short(r.evidenceHash)}</code></td>
+        <td><button data-act="newversion" data-id="${r.id}" class="${r.status === 3 ? "primary" : ""}">${r.status === 3 ? "Prepare corrected version" : "Replace with newer version"}</button></td>
+      </tr>`).join("")}</table>` : "<p>None yet.</p>"}
+  </div>`;
+  }
+  function renderReviewer(ui, m) {
+    const inbox = ui.state.records.filter((r) => r.recipientOrg === m.orgId).sort((a, b) => b.id - a.id);
+    const latest = inbox.filter((r) => !r.supersededBy);
+    return `
+  <div class="card">
+    <h2>Inbox \u2014 ${esc(orgName(ui, m.orgId))}</h2>
+    ${latest.length ? latest.map((r) => renderInboxItem(ui, r)).join("") : "<p>No packages addressed to your organisation yet. Switch to a submitter (e.g. Alice) and send one.</p>"}
+  </div>`;
+  }
+  function renderInboxItem(ui, r) {
+    const rec = ui.receive.get(r.id) ?? { files: [], hash: null, manifest: [], tamper: false };
+    const shared = ui.offchain.get(r.evidenceHash);
+    let body = "";
+    if (r.status === 0) {
+      const match = rec.hash ? rec.hash === r.evidenceHash : null;
+      body = `
+      <p class="hint">Recalculate the hash from the documents you received. The contract only accepts the acknowledgement if it matches the hash on record.</p>
+      <div class="row">
+        <button data-act="fetch" data-id="${r.id}" ${shared ? "" : "disabled"}>Load files shared off-chain</button>
+        <label class="check"><input type="checkbox" data-act="tamper" data-id="${r.id}" ${rec.tamper ? "checked" : ""}> simulate a document altered in transit</label>
+        <label class="filebtn">or upload received files\u2026 <input type="file" multiple data-act="upload" data-scope="recv-${r.id}"></label>
+      </div>
+      ${!shared ? `<p class="hint">No off-chain copy in this browser session \u2014 upload the files you received.</p>` : ""}
+      ${rec.files.length ? `<div class="hashline">Calculated: <code>${rec.hash}</code><br>On record: <code>${r.evidenceHash}</code>
+        <div class="${match ? "okline" : "errline"}">${match ? "\u2714 Hashes match \u2014 this is the version that was recorded." : "\u2718 Hashes differ \u2014 the package has changed. Do not rely on it."}</div></div>` : ""}
+      <button class="primary" data-act="ack" data-id="${r.id}" ${rec.hash && !ui.busy ? "" : "disabled"}>Acknowledge receipt (sends calculated hash)</button>`;
+    } else if (r.status === 1) {
+      body = `<p class="hint">Review the evidence off-chain, then record the outcome. "Review completed" records that a review took place \u2014 it is not a certification or compliance decision.</p>
+      <button class="primary" data-act="complete" data-id="${r.id}">Record review completed</button>
+      <button data-act="correction" data-id="${r.id}">Request correction</button>`;
+    } else if (r.status === 3) {
+      body = `<p class="hint">Waiting for the submitter to send a corrected version.</p>`;
+    } else if (r.status === 2) {
+      body = `<p class="hint">Review recorded. The submitter can still send a newer version later; this one would then be superseded.</p>`;
+    }
+    return `<div class="item">
+    <div class="ihead"><b>${esc(r.packageId)}</b> v${r.version} from ${esc(orgName(ui, r.submitterOrg))} ${statusBadge(r.status)}
+      <span class="muted">record #${r.id} \xB7 ${fmtTime(r.submittedAt)}</span>${r.previousRecord ? ` <span class="muted">\xB7 replaces record #${r.previousRecord}</span>` : ""}</div>
+    ${body}
+  </div>`;
+  }
+  function renderVerify(ui) {
+    const v = ui.verify;
+    const sharedOpts = [...ui.offchain.entries()];
+    let result = "";
+    if (v.result) {
+      if (!v.result.id) result = `<p class="errline">\u2718 No record with this hash. The files are not a recorded version of any evidence package (or have been changed).</p>`;
+      else {
+        const r = ui.state.records.find((x) => x.id === v.result.id);
+        result = `<p class="okline">\u2714 Match: record #${r.id} \u2014 <b>${esc(r.packageId)}</b> v${r.version}, ${statusBadge(r.status)}</p>
+        <p>Submitted by ${esc(who(ui, r.submittedBy))} on ${fmtTime(r.submittedAt)}; recipient ${esc(orgName(ui, r.recipientOrg))}.</p>
+        ${r.status === 4 ? `<p class="info">This version has been superseded by a newer one. It was not deleted \u2014 it stays in the history.</p>` : ""}
+        <h3>Version history</h3>${renderHistory(ui, v.result.history, r.id)}`;
+      }
+    }
+    return `<div class="card">
+    <h2>Verify a package</h2>
+    <p class="hint">Anyone holding the documents can check whether they are exactly a recorded version. Hashing happens in your browser; files are not uploaded anywhere.</p>
+    ${sharedOpts.length ? `<div class="row"><select data-act="verifypick"><option value="">Load a package shared in this session\u2026</option>
+      ${sharedOpts.map(([h, p]) => `<option value="${h}">${esc(p.packageId)} \u2014 ${short(h)}</option>`).join("")}</select></div>` : ""}
+    ${filesEditor(ui, v, "verify")}
+    <button class="primary" data-act="verify" ${v.hash ? "" : "disabled"}>Look up on ledger</button>
+    ${result}
+  </div>`;
+  }
+  function renderHistory(ui, ids, highlight) {
+    return `<ol class="history">${ids.map((id) => {
+      const r = ui.state.records.find((x) => x.id === id);
+      const evs = ui.events.filter((e) => e.args.recordId === id);
+      return `<li class="${id === highlight ? "hl" : ""}"><b>v${r.version}</b> (record #${id}) ${statusBadge(r.status)} <code>${short(r.evidenceHash)}</code>
+      <ul>${evs.map((e) => `<li>${esc(eventText(ui, e))} <span class="muted">block #${e.block} \xB7 ${fmtTime(e.time)}</span></li>`).join("")}</ul></li>`;
+    }).join("")}</ol>`;
+  }
+  function renderNetwork(ui) {
+    const admin = isAdmin(ui, ui.actor);
+    const s = ui.state;
+    const pending = s.proposals.filter((p) => !p.executed).sort((a, b) => b.id - a.id);
+    const done = s.proposals.filter((p) => p.executed).sort((a, b) => b.id - a.id);
+    const unassigned = ui.info.accounts.filter((a) => !isAdmin(ui, a.address));
+    return `
+  <div class="card"><h2>Organisations</h2>
+    <table><tr><th>ID</th><th>Name</th><th>Status</th><th>Employees</th></tr>
+    ${s.orgs.map((o) => `<tr><td>${o.id}</td><td>${esc(o.name)}</td><td>${o.active ? '<span class="badge s-done">Active</span>' : '<span class="badge s-corr">Suspended</span>'}</td>
+      <td>${s.members.filter((m) => m.orgId === o.id).map((m) => `${esc(acct(ui, m.address)?.label ?? short(m.address))} (${ROLE[m.role]})`).join(", ") || "\u2014"}</td></tr>`).join("")}
+    </table>
+    <p class="muted">Admin keys: ${s.admins.map((a) => esc(acct(ui, a)?.label ?? short(a))).join(", ")} \xB7 approvals needed for sensitive changes: <b>${s.threshold} of ${s.adminCount}</b></p>
+  </div>
+  <div class="card"><h2>Governance proposals</h2>
+    <p class="hint">Sensitive changes need approval from more than one organisation's admin. The proposer's approval counts automatically; the change executes when the threshold is reached.</p>
+    ${pending.length ? `<table><tr><th>#</th><th>Proposal</th><th>Approvals</th><th></th></tr>
+      ${pending.map((p) => `<tr><td>${p.id}</td><td>${esc(proposalText(ui, p))}<br><span class="muted">proposed by ${esc(acct(ui, p.proposer)?.label ?? short(p.proposer))}</span></td>
+      <td>${p.approvals} / ${s.threshold}<br><span class="muted">${p.approvedBy.map((a) => esc(acct(ui, a)?.label ?? short(a))).join(", ")}</span></td>
+      <td>${admin ? `<button class="primary" data-act="approve" data-id="${p.id}">Approve</button>` : ""}</td></tr>`).join("")}</table>` : "<p>No pending proposals.</p>"}
+    ${done.length ? `<details><summary>${done.length} executed</summary><ul>${done.map((p) => `<li>#${p.id} ${esc(proposalText(ui, p))}</li>`).join("")}</ul></details>` : ""}
+    ${admin ? `
+    <h3>New proposal</h3>
+    <div class="grid3">
+      <select id="p-action">${ACTION.map((a, i) => opt(ui, "p-action", i, a, 0)).join("")}</select>
+      <input id="p-name" placeholder="Organisation name (admit)" value="${esc(fv(ui, "p-name", ""))}">
+      <select id="p-org">${s.orgs.map((o) => opt(ui, "p-org", o.id, o.name, s.orgs[0]?.id)).join("")}</select>
+      <select id="p-target">${ui.info.accounts.map((a) => opt(ui, "p-target", a.address, a.label, ui.info.accounts[0].address)).join("")}</select>
+      <input id="p-value" type="number" min="1" value="${esc(fv(ui, "p-value", s.threshold))}" placeholder="threshold">
+      <button class="primary" data-act="propose">Propose</button>
+    </div>
+    <p class="muted">Admit: uses the name \xB7 Suspend/Reinstate: uses the organisation \xB7 Add/Remove admin: uses the account \xB7 Change threshold: uses the number.</p>` : `<p class="muted">Switch to an admin key to propose or approve.</p>`}
+  </div>
+  <div class="card"><h2>Employee roles</h2>
+    <p class="hint">One role per account keeps submitting and reviewing separate. Routine role changes need one admin.</p>
+    ${admin ? `<div class="grid3">
+      <select id="r-account">${unassigned.map((a) => opt(ui, "r-account", a.address, `${a.label} \u2014 ${describeAccount(ui, a.address)}`, unassigned[0]?.address)).join("")}</select>
+      <select id="r-org">${s.orgs.map((o) => opt(ui, "r-org", o.id, o.name, s.orgs[0]?.id)).join("")}</select>
+      <select id="r-role">${opt(ui, "r-role", 1, "Submitter", 1)}${opt(ui, "r-role", 2, "Reviewer", 1)}</select>
+      <button class="primary" data-act="assign">Assign role</button>
+      <button data-act="revoke">Revoke role</button>
+    </div>` : `<p class="muted">Switch to an admin key to change roles.</p>`}
+  </div>`;
+  }
+  function proposalText(ui, p) {
+    const t = ACTION[p.action];
+    if (p.action === 0) return `${t}: \u201C${p.name}\u201D`;
+    if (p.action === 1 || p.action === 2) return `${t}: ${orgName(ui, p.orgId)}`;
+    if (p.action === 3 || p.action === 4) return `${t}: ${acct(ui, p.target)?.label ?? p.target}`;
+    return `${t} to ${p.value}`;
+  }
+  function eventText(ui, e) {
+    const a = e.args;
+    switch (e.name) {
+      case "PackageSubmitted":
+        return `Submitted ${a.packageId} v${a.version} by ${who(ui, a.submittedBy)} \u2192 ${orgName(ui, a.recipientOrg)} (hash ${short(a.evidenceHash)})`;
+      case "ReceiptAcknowledged":
+        return `Receipt acknowledged (record #${a.recordId}) by ${who(ui, a.by)} \u2014 hash matched`;
+      case "ReviewCompleted":
+        return `Review completed (record #${a.recordId}) by ${who(ui, a.by)}`;
+      case "CorrectionRequested":
+        return `Correction requested (record #${a.recordId}) by ${who(ui, a.by)}`;
+      case "PackageSuperseded":
+        return `Record #${a.recordId} superseded by #${a.newRecordId}`;
+      case "ProposalCreated":
+        return `Proposal #${a.proposalId} (${ACTION[a.action]}) by ${who(ui, a.proposer)}`;
+      case "ProposalApproved":
+        return `Proposal #${a.proposalId} approved by ${who(ui, a.admin)} (${a.approvals})`;
+      case "ProposalExecuted":
+        return `Proposal #${a.proposalId} executed`;
+      case "OrganisationAdmitted":
+        return `Organisation admitted: ${a.name} (#${a.orgId})`;
+      case "OrganisationStatusChanged":
+        return `${orgName(ui, a.orgId)} ${a.active ? "reinstated" : "suspended"}`;
+      case "RoleAssigned":
+        return `${acct(ui, a.account)?.label ?? short(a.account)} \u2192 ${ROLE[a.role]} at ${orgName(ui, a.orgId)}`;
+      case "RoleRevoked":
+        return `Role revoked: ${acct(ui, a.account)?.label ?? short(a.account)}`;
+      case "AdminChanged":
+        return `Admin ${a.added ? "added" : "removed"}: ${acct(ui, a.account)?.label ?? short(a.account)}`;
+      case "ThresholdChanged":
+        return `Approval threshold set to ${a.threshold}`;
+      default:
+        return e.name;
+    }
+  }
+  function renderLedger(ui) {
+    const evs = ui.events.slice().reverse();
+    const lite = ui.info.mode === "lite";
+    return `
+  ${lite ? `<div class="card"><h2>Blocks</h2>
+    <p class="hint">Each block stores the hash of the previous block. Editing any sealed block breaks the chain of hashes \u2014 try it.</p>
+    <div class="row"><button data-act="checkchain">Verify chain integrity</button><button data-act="tamperblock" class="danger">Tamper with a sealed block</button>
+      ${ui.chainCheck ? `<span class="${ui.chainCheck.ok ? "okline" : "errline"}">${ui.chainCheck.ok ? `\u2714 ${ui.chainCheck.blocks} blocks, all links valid` : `\u2718 Block #${ui.chainCheck.block}: ${ui.chainCheck.problem}`}</span>` : ""}</div>
+    <div class="blocks">${ui.backend.blocks.slice(-8).reverse().map((b) => `<div class="blk"><b>#${b.number}</b> <code>${short(b.hash, 12)}</code><br><span class="muted">prev <code>${short(b.parentHash, 12)}</code></span><br>${esc(b.txs[0]?.method ?? "genesis")}</div>`).join("")}</div>
+  </div>` : ""}
+  <div class="card"><h2>Events on the ledger</h2>
+    <p class="hint">Everything CorpVerify knows. No documents, no personal data \u2014 hashes, organisations, accounts, statuses, times.</p>
+    <table><tr><th>Block</th><th>Event</th><th>Tx</th><th>Time</th></tr>
+    ${evs.map((e) => `<tr><td>#${e.block}</td><td><b>${e.name}</b><br>${esc(eventText(ui, e))}</td><td><code>${short(e.tx, 8)}</code></td><td class="muted">${fmtTime(e.time)}</td></tr>`).join("")}
+    </table>
+  </div>`;
+  }
+  function renderAbout(ui) {
+    return `<div class="card prose">
+    <h2>How this proof of concept works</h2>
+    <p><b>Mode:</b> ${ui.info.mode === "chain" ? `the CorpVerify smart contract (Solidity) is deployed at <code>${ui.info.contractAddress}</code> on a local Hardhat Ethereum network. Every action is a signed transaction from the selected account.` : "this page simulates the CorpVerify smart contract and a hash-linked ledger in JavaScript. It enforces the same rules and error codes as the Solidity contract (checked by an automated parity test). Nothing leaves your browser; reloading resets the demo."}</p>
+    <h3>Try the full story</h3>
+    <ol>
+      <li><b>Alice</b> (Atlas, submitter): <i>Use sample documents</i> \u2192 <i>Submit to CorpVerify</i>.</li>
+      <li><b>Bob</b> (Northbridge, reviewer): tick <i>simulate a document altered in transit</i> \u2192 <i>Load files shared off-chain</i> \u2192 <i>Acknowledge receipt</i>. The contract rejects it: hashes differ.</li>
+      <li>Untick, load again, acknowledge \u2192 <i>Request correction</i>.</li>
+      <li><b>Alice</b>: <i>Prepare corrected version</i>, edit a document \u2192 <i>Submit v2</i>. v1 becomes Superseded.</li>
+      <li><b>Bob</b>: load, acknowledge, <i>Record review completed</i>.</li>
+      <li><b>Verify a package</b>: load v1 or v2 and look it up \u2014 both are on record, with full history.</li>
+      <li><b>Admin \u2014 Atlas</b>: propose <i>Admit organisation</i>; switch to <b>Admin \u2014 Northbridge</b> and approve. Then assign <b>Erin</b> a role in the new organisation.</li>
+    </ol>
+    <h3>What is on-chain</h3>
+    <p>Package ID, version, package hash, submitting and receiving organisation, signing account, time, workflow status and version links. Original documents never go on the ledger.</p>
+    <h3>Package hash</h3>
+    <p>SHA-256 of each file; the file names and file hashes are sorted into a manifest; the package hash is the SHA-256 of that manifest. Changing a byte, renaming, adding or removing a file changes it.</p>
+    <h3>Limits of the PoC</h3>
+    <p>Single local node instead of a multi-validator permissioned network; test accounts instead of organisation identity and wallets; all participants can read all records; the off-chain share is simulated in the browser.</p>
+  </div>`;
+  }
+  function scopeTarget(ui, scope) {
+    if (scope === "draft") return ui.draft;
+    if (scope === "verify") return ui.verify;
+    if (scope.startsWith("recv-")) {
+      const id = Number(scope.slice(5));
+      if (!ui.receive.has(id)) ui.receive.set(id, { files: [], hash: null, manifest: [], tamper: false });
+      return ui.receive.get(id);
+    }
+  }
+  async function onClick(ui, e) {
+    const el = e.target.closest("[data-act]");
+    if (!el || el.tagName === "SELECT" || el.tagName === "INPUT" || el.tagName === "TEXTAREA") return;
+    const act = el.dataset.act;
+    const id = Number(el.dataset.id);
+    const b = ui.backend;
+    if (act === "tab") {
+      e.preventDefault();
+      ui.tab = el.dataset.tab;
+      return render(ui);
+    }
+    if (act === "samples") {
+      ui.draft.files = SAMPLES.map((s) => textEntry(s.name, s.text));
+      await rehash(ui.draft);
+      return render(ui);
+    }
+    if (act === "addtext") {
+      const t = scopeTarget(ui, el.dataset.scope);
+      t.files.push(textEntry(`document_${t.files.length + 1}.txt`, ""));
+      await rehash(t);
+      return render(ui);
+    }
+    if (act === "rmfile") {
+      const t = scopeTarget(ui, el.dataset.scope);
+      t.files.splice(Number(el.dataset.i), 1);
+      await rehash(t);
+      return render(ui);
+    }
+    if (act === "submit") {
+      const d = ui.draft;
+      const files = d.files.map((f) => ({ ...f, bytes: f.bytes.slice() }));
+      const hash = d.hash, packageId = d.packageId.trim();
+      return run(ui, `Submit ${packageId}`, async () => {
+        const r = await b.submit(ui.actor, packageId, hash, d.recipient);
+        ui.offchain.set(hash, { packageId, files });
+        d.files = [];
+        d.hash = null;
+        d.manifest = [];
+        return r;
+      });
+    }
+    if (act === "newversion") {
+      const r = ui.state.records.find((x) => x.id === id);
+      const prev = ui.offchain.get(r.evidenceHash);
+      ui.draft.packageId = r.packageId;
+      ui.draft.recipient = r.recipientOrg;
+      ui.draft.files = prev ? prev.files.map((f) => f.editable ? textEntry(f.name, f.text) : { ...f }) : [];
+      await rehash(ui.draft);
+      note(ui, "info", `Draft loaded from v${r.version}. Change the documents so the new version gets a new hash, then submit.`);
+      window.scrollTo?.(0, 0);
+      return render(ui);
+    }
+    if (act === "fetch") {
+      const r = ui.state.records.find((x) => x.id === id);
+      const t = scopeTarget(ui, `recv-${id}`);
+      const shared = ui.offchain.get(r.evidenceHash);
+      t.files = shared.files.map((f) => ({ ...f, bytes: f.bytes.slice() }));
+      if (t.tamper && t.files.length) {
+        const i = Math.max(0, t.files.findIndex((f2) => /60%/.test(f2.text ?? "")));
+        const f = t.files[i];
+        let bytes;
+        if (f.text && /60%/.test(f.text)) bytes = enc3.encode(f.text.replace("60%", "\xA7").replace("40%", "60%").replace("\xA7", "40%"));
+        else {
+          bytes = f.bytes.slice();
+          if (bytes.length) bytes[bytes.length - 1] ^= 1;
+          else bytes = enc3.encode(" ");
+        }
+        t.files[i] = { name: f.name, bytes, editable: false };
+      }
+      await rehash(t);
+      return render(ui);
+    }
+    if (act === "ack") {
+      const t = ui.receive.get(id);
+      return run(ui, `Acknowledge receipt of record #${id}`, () => b.acknowledgeReceipt(ui.actor, id, t.hash));
+    }
+    if (act === "complete") return run(ui, `Record review completed for #${id}`, () => b.completeReview(ui.actor, id));
+    if (act === "correction") return run(ui, `Request correction for #${id}`, () => b.requestCorrection(ui.actor, id));
+    if (act === "verify") {
+      const rid = await b.recordByHash(ui.verify.hash);
+      ui.verify.result = { id: rid, history: rid ? await b.getHistory(rid) : [] };
+      return render(ui);
+    }
+    if (act === "approve") return run(ui, `Approve proposal #${id}`, () => b.approve(ui.actor, id));
+    if (act === "propose") {
+      const action = Number($("#p-action", ui.root).value);
+      const name = $("#p-name", ui.root).value.trim();
+      const orgId = Number($("#p-org", ui.root).value);
+      const target = $("#p-target", ui.root).value;
+      const value = Number($("#p-value", ui.root).value);
+      return run(ui, `Propose: ${ACTION[action]}`, () => b.propose(ui.actor, action, target, orgId, value, name));
+    }
+    if (act === "assign") {
+      const account = $("#r-account", ui.root).value;
+      return run(ui, `Assign role to ${acct(ui, account)?.label}`, () => b.assignRole(ui.actor, account, Number($("#r-org", ui.root).value), Number($("#r-role", ui.root).value)));
+    }
+    if (act === "revoke") {
+      const account = $("#r-account", ui.root).value;
+      return run(ui, `Revoke role of ${acct(ui, account)?.label}`, () => b.revokeRole(ui.actor, account));
+    }
+    if (act === "checkchain") {
+      ui.chainCheck = await b.verifyChain();
+      return render(ui);
+    }
+    if (act === "tamperblock") {
+      const n = b.blocks.findIndex((x) => x.txs[0]?.method === "submit");
+      b.tamperWithBlock(n > 0 ? n : 1);
+      note(ui, "info", `Block #${n > 0 ? n : 1} was edited directly (as an insider with database access might). Now verify the chain.`);
+      ui.chainCheck = null;
+      return render(ui);
+    }
+  }
+  async function onChange(ui, e) {
+    const el = e.target;
+    if (/^[pr]-/.test(el.id)) {
+      ui.forms[el.id] = el.value;
+      return;
+    }
+    const act = el.dataset.act;
+    if (act === "actor") {
+      ui.actor = el.value;
+      return render(ui);
+    }
+    if (act === "recipient") {
+      ui.draft.recipient = Number(el.value);
+      return render(ui);
+    }
+    if (act === "upload") {
+      const t = scopeTarget(ui, el.dataset.scope);
+      t.files.push(...await readFiles(el.files));
+      await rehash(t);
+      return render(ui);
+    }
+    if (act === "tamper") {
+      const t = scopeTarget(ui, `recv-${el.dataset.id}`);
+      t.tamper = el.checked;
+      t.files = [];
+      t.hash = null;
+      return render(ui);
+    }
+    if (act === "verifypick") {
+      const p = ui.offchain.get(el.value);
+      if (!p) return;
+      ui.verify.files = p.files.map((f) => ({ ...f, bytes: f.bytes.slice() }));
+      ui.verify.result = null;
+      await rehash(ui.verify);
+      return render(ui);
+    }
+  }
+  async function onInput(ui, e) {
+    const el = e.target;
+    if (/^[pr]-/.test(el.id)) {
+      ui.forms[el.id] = el.value;
+      return;
+    }
+    const act = el.dataset.act;
+    if (act === "pkgid") {
+      ui.draft.packageId = el.value;
+      return render(ui);
+    }
+    if (act === "ftext" || act === "fname") {
+      const t = scopeTarget(ui, el.dataset.scope);
+      const f = t.files[Number(el.dataset.i)];
+      if (act === "ftext") {
+        f.text = el.value;
+        f.bytes = enc3.encode(el.value);
+      } else f.name = el.value;
+      if (t === ui.verify) t.result = null;
+      await rehash(t);
+      return render(ui);
+    }
+  }
+
+  // ui/main-lite.js
+  start(new SimBackend(), document.getElementById("app")).then((ui) => {
+    window.corpverify = ui;
+  });
+})();
+
+</script>
+</body>
+</html>
