@@ -32,7 +32,7 @@ A short tour:
 
 ## Status
 
-CorpVerify is a student team project. This demo is a proof of concept, not a production system.
+CorpVerify is a team project. This demo is a proof of concept, not a production system.
 
 ## License
 
