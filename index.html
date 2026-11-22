@@ -88,9 +88,9 @@ table { width:100%; border-collapse:collapse; font-size:13px; } th, td { text-al
   var ORGS = ["Atlas Corporate Services", "Northbridge Bank", "Meridian Legal"];
   var THRESHOLD = 2;
   var ACCOUNTS = [
-    { index: 0, label: "Admin \u2014 Atlas", kind: "admin" },
-    { index: 1, label: "Admin \u2014 Northbridge", kind: "admin" },
-    { index: 2, label: "Admin \u2014 Meridian", kind: "admin" },
+    { index: 0, label: "Admin \u2014 Atlas", kind: "admin", org: 1 },
+    { index: 1, label: "Admin \u2014 Northbridge", kind: "admin", org: 2 },
+    { index: 2, label: "Admin \u2014 Meridian", kind: "admin", org: 3 },
     { index: 3, label: "Alice", kind: "employee", org: 1, role: 1 },
     // Atlas submitter
     { index: 4, label: "Bob", kind: "employee", org: 2, role: 2 },
@@ -99,8 +99,10 @@ table { width:100%; border-collapse:collapse; font-size:13px; } th, td { text-al
     // Northbridge submitter
     { index: 6, label: "Dan", kind: "employee", org: 3, role: 2 },
     // Meridian reviewer
-    { index: 7, label: "Erin", kind: "unassigned" }
+    { index: 7, label: "Erin", kind: "unassigned" },
     // no role yet (use for onboarding demo)
+    { index: 8, label: "Harry", kind: "unassigned" }
+    // no role yet (becomes a new organisation's admin)
   ];
   var STATUS = ["Submitted", "Receipt acknowledged", "Review completed", "Correction requested", "Superseded"];
   var ROLE = ["None", "Submitter", "Reviewer"];
@@ -115,7 +117,8 @@ table { width:100%; border-collapse:collapse; font-size:13px; } th, td { text-al
     "0x15d34AAf54267DB7D7c367839AAf71A00a2C6A65",
     "0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc",
     "0x976EA74026E726554dB657fA54763abd0C3a0aa9",
-    "0x14dC79964da2C08b23698B3D3cc7Ca32193d9955"
+    "0x14dC79964da2C08b23698B3D3cc7Ca32193d9955",
+    "0x23618e81E3f5cdF7f54C3d65f7FBc0aBf5B21E8f"
   ];
   var ZERO = "0x0000000000000000000000000000000000000000";
   var ZERO32 = "0x" + "0".repeat(64);
@@ -137,6 +140,8 @@ table { width:100%; border-collapse:collapse; font-size:13px; } th, td { text-al
   var CorpVerifySim = class {
     constructor(admins, threshold, orgNames) {
       this.isAdmin = /* @__PURE__ */ new Map();
+      this.adminOrg = /* @__PURE__ */ new Map();
+      this.orgAdmin = /* @__PURE__ */ new Map();
       this.orgs = /* @__PURE__ */ new Map();
       this.members = /* @__PURE__ */ new Map();
       this.records = /* @__PURE__ */ new Map();
@@ -147,16 +152,25 @@ table { width:100%; border-collapse:collapse; font-size:13px; } th, td { text-al
       this.recordCount = 0;
       this.proposalCount = 0;
       this.pendingEvents = [];
-      if (!admins.length || threshold === 0 || threshold > admins.length) revert("InvalidInput");
-      for (const a of admins) {
+      this.adminCount = 0;
+      if (!admins.length || admins.length !== orgNames.length || threshold === 0 || threshold > admins.length) revert("InvalidInput");
+      for (const n of orgNames) this._admit(n);
+      admins.forEach((a, i) => {
         if (a === ZERO || this.isAdmin.get(norm(a))) revert("InvalidInput");
-        this.isAdmin.set(norm(a), true);
-        this.emit("AdminChanged", { account: a, added: true });
-      }
-      this.adminCount = admins.length;
+        this._addAdmin(a, i + 1);
+      });
       this.threshold = threshold;
       this.emit("ThresholdChanged", { threshold });
-      for (const n of orgNames) this._admit(n);
+    }
+    _addAdmin(account, orgId) {
+      this.isAdmin.set(norm(account), true);
+      this.adminOrg.set(norm(account), orgId);
+      this.orgAdmin.set(orgId, norm(account));
+      this.adminCount++;
+      this.emit("AdminChanged", { account, orgId, added: true });
+    }
+    _requireNoConflict(from, action, orgId) {
+      if ((action === A.SuspendOrganisation || action === A.ReinstateOrganisation) && this.adminOrg.get(norm(from)) === orgId) revert("ConflictOfInterest", orgId);
     }
     emit(name, args) {
       this.pendingEvents.push({ name, args });
@@ -258,13 +272,18 @@ table { width:100%; border-collapse:collapse; font-size:13px; } th, td { text-al
       this.onlyAdmin(from);
       if (account === ZERO || role === R.None) revert("InvalidInput");
       if (this.isAdmin.get(norm(account))) revert("AdminCannotHoldEmployeeRole");
+      if (this.adminOrg.get(norm(from)) !== orgId) revert("NotOwnOrganisation", orgId);
       this.requireActive(orgId);
+      const current = this.member(account);
+      if (current.role !== R.None && current.orgId !== orgId) revert("NotOwnOrganisation", current.orgId);
       this.members.set(norm(account), { orgId, role });
       this.emit("RoleAssigned", { account, orgId, role, by: from });
     }
     revokeRole(from, account) {
       this.onlyAdmin(from);
-      if (this.member(account).role === R.None) revert("InvalidInput");
+      const current = this.member(account);
+      if (current.role === R.None) revert("InvalidInput");
+      if (this.adminOrg.get(norm(from)) !== current.orgId) revert("NotOwnOrganisation", current.orgId);
       this.members.delete(norm(account));
       this.emit("RoleRevoked", { account, by: from });
     }
@@ -272,6 +291,7 @@ table { width:100%; border-collapse:collapse; font-size:13px; } th, td { text-al
     propose(from, action, target, orgId, value, name) {
       this.onlyAdmin(from);
       this._validate(action, target, orgId, value, name);
+      this._requireNoConflict(from, action, orgId);
       const id = ++this.proposalCount;
       this.proposals.set(id, { id, action, target, orgId, value, name, proposer: from, approvals: 0, executed: false, approvedBy: /* @__PURE__ */ new Set() });
       this.emit("ProposalCreated", { proposalId: id, action, proposer: from });
@@ -287,9 +307,12 @@ table { width:100%; border-collapse:collapse; font-size:13px; } th, td { text-al
         if (!name) revert("InvalidInput");
       } else if (action === A.SuspendOrganisation || action === A.ReinstateOrganisation) {
         if (!this.orgs.has(orgId)) revert("UnknownOrganisation", orgId);
+        if (this.orgAdmin.has(orgId) && this.adminCount - 1 < this.threshold) revert("InvalidInput");
       } else if (action === A.AddAdmin) {
         if (target === ZERO || this.isAdmin.get(norm(target))) revert("InvalidInput");
         if (this.member(target).role !== R.None) revert("EmployeeCannotBeAdmin");
+        if (!this.orgs.has(orgId)) revert("UnknownOrganisation", orgId);
+        if (this.orgAdmin.has(orgId)) revert("OrganisationHasAdmin", orgId);
       } else if (action === A.RemoveAdmin) {
         if (!this.isAdmin.get(norm(target)) || this.adminCount - 1 < this.threshold) revert("InvalidInput");
       } else if (action === A.SetThreshold) {
@@ -301,6 +324,7 @@ table { width:100%; border-collapse:collapse; font-size:13px; } th, td { text-al
       if (!p) revert("UnknownProposal");
       if (p.executed) revert("AlreadyExecuted");
       if (p.approvedBy.has(norm(from))) revert("AlreadyApproved");
+      this._requireNoConflict(from, p.action, p.orgId);
       p.approvedBy.add(norm(from));
       p.approvals += 1;
       this.emit("ProposalApproved", { proposalId: id, admin: from, approvals: p.approvals });
@@ -317,14 +341,16 @@ table { width:100%; border-collapse:collapse; font-size:13px; } th, td { text-al
       } else if (a === A.AddAdmin) {
         if (this.isAdmin.get(norm(p.target))) revert("InvalidInput");
         if (this.member(p.target).role !== R.None) revert("EmployeeCannotBeAdmin");
-        this.isAdmin.set(norm(p.target), true);
-        this.adminCount++;
-        this.emit("AdminChanged", { account: p.target, added: true });
+        if (this.orgAdmin.has(p.orgId)) revert("OrganisationHasAdmin", p.orgId);
+        this._addAdmin(p.target, p.orgId);
       } else if (a === A.RemoveAdmin) {
         if (!this.isAdmin.get(norm(p.target)) || this.adminCount - 1 < this.threshold) revert("InvalidInput");
+        const org = this.adminOrg.get(norm(p.target));
         this.isAdmin.delete(norm(p.target));
+        this.adminOrg.delete(norm(p.target));
+        this.orgAdmin.delete(org);
         this.adminCount--;
-        this.emit("AdminChanged", { account: p.target, added: false });
+        this.emit("AdminChanged", { account: p.target, orgId: org, added: false });
       } else if (a === A.SetThreshold) {
         if (p.value === 0 || p.value > this.adminCount) revert("InvalidInput");
         this.threshold = p.value;
@@ -365,7 +391,8 @@ table { width:100%; border-collapse:collapse; font-size:13px; } th, td { text-al
         this.c = new CorpVerifySim(admins, THRESHOLD, ORGS);
       });
       for (const a of this.accounts.filter((x) => x.kind === "employee")) {
-        await this._tx(admins[0], "assignRole", [a.address, a.org, a.role], (c) => c.assignRole(admins[0], a.address, a.org, a.role));
+        const by = admins[a.org - 1];
+        await this._tx(by, "assignRole", [a.address, a.org, a.role], (c) => c.assignRole(by, a.address, a.org, a.role));
       }
       return { mode: this.mode, accounts: this.accounts, contractAddress: this.contractAddress };
     }
@@ -444,6 +471,7 @@ table { width:100%; border-collapse:collapse; font-size:13px; } th, td { text-al
       return {
         orgs: [...c.orgs.values()].map((o) => ({ ...o })),
         admins: this.accounts.map((a) => a.address).filter((a) => c.isAdmin.get(norm(a))),
+        adminOrgs: Object.fromEntries([...c.adminOrg.entries()]),
         threshold: c.threshold,
         adminCount: c.adminCount,
         members: [...memberAddrs].map((address) => ({ address, ...c.member(address) })).filter((m) => m.role !== R.None),
@@ -485,7 +513,10 @@ table { width:100%; border-collapse:collapse; font-size:13px; } th, td { text-al
     UnknownProposal: "Unknown proposal.",
     AdminCannotHoldEmployeeRole: "Admin keys cannot hold employee roles (separation of keys).",
     EmployeeCannotBeAdmin: "An employee signing key cannot become an admin key.",
-    RecipientMismatch: "A new version must go to the same recipient as the earlier version."
+    RecipientMismatch: "A new version must go to the same recipient as the earlier version.",
+    NotOwnOrganisation: "An organisation's admin can only manage that organisation's own employees.",
+    ConflictOfInterest: "An organisation's admin cannot propose or approve its own suspension or reinstatement.",
+    OrganisationHasAdmin: "That organisation already has an admin key (one per organisation)."
   };
   var SAMPLES = [
     { name: "certificate_of_incorporation.txt", text: "ACME Holdings Ltd\nCompany number 0912345\nIncorporated 2 March 2014\nRegistered office: 1 Harbour Street" },
@@ -529,6 +560,8 @@ table { width:100%; border-collapse:collapse; font-size:13px; } th, td { text-al
   var acct = (ui, addr) => ui.info.accounts.find((a) => a.address.toLowerCase() === addr?.toLowerCase());
   var orgName = (ui, id) => ui.state.orgs.find((o) => o.id === id)?.name ?? `Org #${id}`;
   var isAdmin = (ui, addr) => ui.state.admins.some((a) => a.toLowerCase() === addr.toLowerCase());
+  var adminOrgOf = (ui, addr) => ui.state.adminOrgs?.[addr.toLowerCase()];
+  var adminOfOrg = (ui, orgId) => ui.state.admins.find((a) => adminOrgOf(ui, a) === orgId);
   var memberOf = (ui, addr) => ui.state.members.find((m) => m.address.toLowerCase() === addr.toLowerCase());
   function who(ui, addr) {
     const a = acct(ui, addr);
@@ -585,7 +618,7 @@ table { width:100%; border-collapse:collapse; font-size:13px; } th, td { text-al
   function render(ui) {
     const me = acct(ui, ui.actor);
     const m = memberOf(ui, ui.actor);
-    const roleText = isAdmin(ui, ui.actor) ? "Consortium admin key" : m ? `${ROLE[m.role]} \xB7 ${orgName(ui, m.orgId)}` : "No role assigned";
+    const roleText = isAdmin(ui, ui.actor) ? `Consortium admin key \xB7 ${orgName(ui, adminOrgOf(ui, ui.actor))}` : m ? `${ROLE[m.role]} \xB7 ${orgName(ui, m.orgId)}` : "No role assigned";
     const focus = document.activeElement?.dataset?.focusKey;
     const caret = document.activeElement?.selectionStart;
     ui.root.innerHTML = `
@@ -625,7 +658,7 @@ table { width:100%; border-collapse:collapse; font-size:13px; } th, td { text-al
     }
   }
   function describeAccount(ui, addr) {
-    if (isAdmin(ui, addr)) return "admin";
+    if (isAdmin(ui, addr)) return `admin, ${orgName(ui, adminOrgOf(ui, addr))}`;
     const m = memberOf(ui, addr);
     return m ? `${ROLE[m.role]}, ${orgName(ui, m.orgId)}` : "no role";
   }
@@ -764,17 +797,19 @@ table { width:100%; border-collapse:collapse; font-size:13px; } th, td { text-al
     const s = ui.state;
     const pending = s.proposals.filter((p) => !p.executed).sort((a, b) => b.id - a.id);
     const done = s.proposals.filter((p) => p.executed).sort((a, b) => b.id - a.id);
-    const unassigned = ui.info.accounts.filter((a) => !isAdmin(ui, a.address));
+    const myOrg = admin ? adminOrgOf(ui, ui.actor) : 0;
+    const unassigned = ui.info.accounts.filter((a) => !isAdmin(ui, a.address) && (!memberOf(ui, a.address) || memberOf(ui, a.address).orgId === myOrg));
     return `
   <div class="card"><h2>Organisations</h2>
-    <table><tr><th>ID</th><th>Name</th><th>Status</th><th>Employees</th></tr>
+    <table><tr><th>ID</th><th>Name</th><th>Status</th><th>Admin key</th><th>Employees</th></tr>
     ${s.orgs.map((o) => `<tr><td>${o.id}</td><td>${esc(o.name)}</td><td>${o.active ? '<span class="badge s-done">Active</span>' : '<span class="badge s-corr">Suspended</span>'}</td>
+      <td>${adminOfOrg(ui, o.id) ? esc(acct(ui, adminOfOrg(ui, o.id))?.label ?? short(adminOfOrg(ui, o.id))) : '<span class="muted">none yet</span>'}</td>
       <td>${s.members.filter((m) => m.orgId === o.id).map((m) => `${esc(acct(ui, m.address)?.label ?? short(m.address))} (${ROLE[m.role]})`).join(", ") || "\u2014"}</td></tr>`).join("")}
     </table>
     <p class="muted">Admin keys: ${s.admins.map((a) => esc(acct(ui, a)?.label ?? short(a))).join(", ")} \xB7 approvals needed for sensitive changes: <b>${s.threshold} of ${s.adminCount}</b></p>
   </div>
   <div class="card"><h2>Governance proposals</h2>
-    <p class="hint">Sensitive changes need approval from ${s.threshold} of the ${s.adminCount} organisations' admins. The consortium sets this number and can change it by proposal. The proposer's approval counts automatically; the change executes when the threshold is reached.</p>
+    <p class="hint">Sensitive changes need approval from ${s.threshold} of the ${s.adminCount} organisations' admins. The consortium sets this number (a simple majority in the pilot) and can change it by proposal. The proposer's approval counts automatically; the change executes when the threshold is reached. An organisation's admin cannot vote on its own suspension or reinstatement.</p>
     ${pending.length ? `<table><tr><th>#</th><th>Proposal</th><th>Approvals</th><th></th></tr>
       ${pending.map((p) => `<tr><td>${p.id}</td><td>${esc(proposalText(ui, p))}<br><span class="muted">proposed by ${esc(acct(ui, p.proposer)?.label ?? short(p.proposer))}</span></td>
       <td>${p.approvals} / ${s.threshold}<br><span class="muted">${p.approvedBy.map((a) => esc(acct(ui, a)?.label ?? short(a))).join(", ")}</span></td>
@@ -790,13 +825,13 @@ table { width:100%; border-collapse:collapse; font-size:13px; } th, td { text-al
       <input id="p-value" type="number" min="1" value="${esc(fv(ui, "p-value", s.threshold))}" placeholder="threshold">
       <button class="primary" data-act="propose">Propose</button>
     </div>
-    <p class="muted">Admit: uses the name \xB7 Suspend/Reinstate: uses the organisation \xB7 Add/Remove admin: uses the account \xB7 Change threshold: uses the number.</p>` : `<p class="muted">Choose an admin in the <b>Acting as</b> menu to propose or approve.</p>`}
+    <p class="muted">Admit: uses the name \xB7 Suspend/Reinstate: uses the organisation \xB7 Add admin: uses the account and the organisation it will represent (one admin key per organisation) \xB7 Remove admin: uses the account \xB7 Change threshold: uses the number. After admitting an organisation, add its admin key, then adjust the threshold to keep a majority.</p>` : `<p class="muted">Choose an admin in the <b>Acting as</b> menu to propose or approve.</p>`}
   </div>
   <div class="card"><h2>Employee roles</h2>
-    <p class="hint">One role per account to ensure submitting and reviewing tasks are distinct. Routine changes (giving an employee a role, removing it, or switching it) need one admin.</p>
+    <p class="hint">One role per account to ensure submitting and reviewing tasks are distinct. Routine changes (giving an employee a role, removing it, or switching it) need one admin: the employee's own organisation's admin.${admin ? ` You manage ${esc(orgName(ui, myOrg))}'s employees only.` : ""}</p>
     ${admin ? `<div class="grid3">
       <select id="r-account">${unassigned.map((a) => opt(ui, "r-account", a.address, `${a.label} \u2014 ${describeAccount(ui, a.address)}`, unassigned[0]?.address)).join("")}</select>
-      <select id="r-org">${s.orgs.map((o) => opt(ui, "r-org", o.id, o.name, s.orgs[0]?.id)).join("")}</select>
+      <select id="r-org" disabled>${opt(ui, "r-org", myOrg, orgName(ui, myOrg), myOrg)}</select>
       <select id="r-role">${opt(ui, "r-role", 1, "Submitter", 1)}${opt(ui, "r-role", 2, "Reviewer", 1)}</select>
       <button class="primary" data-act="assign">Assign role</button>
       <button data-act="revoke">Revoke role</button>
@@ -807,7 +842,8 @@ table { width:100%; border-collapse:collapse; font-size:13px; } th, td { text-al
     const t = ACTION[p.action];
     if (p.action === 0) return `${t}: \u201C${p.name}\u201D`;
     if (p.action === 1 || p.action === 2) return `${t}: ${orgName(ui, p.orgId)}`;
-    if (p.action === 3 || p.action === 4) return `${t}: ${acct(ui, p.target)?.label ?? p.target}`;
+    if (p.action === 3) return `${t}: ${acct(ui, p.target)?.label ?? p.target} for ${orgName(ui, p.orgId)}`;
+    if (p.action === 4) return `${t}: ${acct(ui, p.target)?.label ?? p.target}`;
     return `${t} to ${p.value}`;
   }
   function eventText(ui, e) {
@@ -838,7 +874,7 @@ table { width:100%; border-collapse:collapse; font-size:13px; } th, td { text-al
       case "RoleRevoked":
         return `Role revoked: ${acct(ui, a.account)?.label ?? short(a.account)}`;
       case "AdminChanged":
-        return `Admin ${a.added ? "added" : "removed"}: ${acct(ui, a.account)?.label ?? short(a.account)}`;
+        return `Admin ${a.added ? "added" : "removed"}: ${acct(ui, a.account)?.label ?? short(a.account)} (${orgName(ui, Number(a.orgId))})`;
       case "ThresholdChanged":
         return `Approval threshold set to ${a.threshold}`;
       default:
@@ -874,7 +910,9 @@ table { width:100%; border-collapse:collapse; font-size:13px; } th, td { text-al
       <li><b>Alice</b>: <i>Prepare corrected version</i>, edit a document \u2192 <i>Submit v2</i>. v1 becomes Superseded.</li>
       <li><b>Bob</b>: load, acknowledge, <i>Record review completed</i>.</li>
       <li><b>Verify a package</b>: load v1 or v2 and look it up \u2014 both are on record, with full history.</li>
-      <li><b>Admin \u2014 Atlas</b>: propose <i>Admit organisation</i>; switch to <b>Admin \u2014 Northbridge</b> and approve. Then assign <b>Erin</b> a role in the new organisation.</li>
+      <li><b>Admin \u2014 Atlas</b>: propose <i>Admit organisation</i>; switch to <b>Admin \u2014 Northbridge</b> and approve. The new organisation has no admin yet, so Atlas cannot staff it.</li>
+      <li><b>Admin \u2014 Atlas</b>: propose <i>Add admin</i> with <b>Harry</b> and the new organisation; <b>Admin \u2014 Northbridge</b> approves. Switch to <b>Harry</b> and assign <b>Erin</b> a role. Then propose <i>Change threshold</i> to 3, a majority of four.</li>
+      <li><b>Admin \u2014 Northbridge</b>: try to propose <i>Suspend organisation</i> for Northbridge. The contract refuses: an organisation cannot vote on its own suspension.</li>
     </ol>
     <h3>What is on-chain</h3>
     <p>Package ID, version, package hash, submitting and receiving organisation, signing account, time, workflow status and version links. Original documents never go on the ledger.</p>
@@ -987,7 +1025,8 @@ table { width:100%; border-collapse:collapse; font-size:13px; } th, td { text-al
     }
     if (act === "assign") {
       const account = $("#r-account", ui.root).value;
-      return run(ui, `Assign role to ${acct(ui, account)?.label}`, () => b.assignRole(ui.actor, account, Number($("#r-org", ui.root).value), Number($("#r-role", ui.root).value)));
+      const orgId = adminOrgOf(ui, ui.actor);
+      return run(ui, `Assign role to ${acct(ui, account)?.label}`, () => b.assignRole(ui.actor, account, orgId, Number($("#r-role", ui.root).value)));
     }
     if (act === "revoke") {
       const account = $("#r-account", ui.root).value;
